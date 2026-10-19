@@ -73,6 +73,11 @@ pub struct Canvas {
 
 impl Canvas {
     #[cfg(not(target_arch = "wasm32"))]
+    pub fn handle_external_event(&mut self, event: winit::event::WindowEvent) {
+        self.canvas.handle_external_event(event);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_external(
         window: std::sync::Arc<winit::window::Window>,
         surface: wgpu::Surface<'static>,

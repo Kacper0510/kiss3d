@@ -1315,6 +1315,95 @@ impl WgpuCanvas {
         }
     }
 
+    /// Translates one event from an externally-owned native winit event loop
+    /// into kiss3d's event queue.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn handle_external_event(&mut self, event: WinitWindowEvent) {
+        let pending_events = match event {
+            WinitWindowEvent::CloseRequested => {
+                vec![PendingEvent::WindowEvent(WindowEvent::Close)]
+            }
+            WinitWindowEvent::CursorMoved { position, .. } => {
+                vec![
+                    PendingEvent::CursorPos(position.x, position.y),
+                    PendingEvent::WindowEvent(WindowEvent::CursorPos(
+                        position.x,
+                        position.y,
+                        Modifiers::empty(),
+                    )),
+                ]
+            }
+            WinitWindowEvent::MouseInput { state, button, .. } => {
+                let action = translate_action(state);
+                let button = translate_mouse_button(button);
+                vec![
+                    PendingEvent::ButtonState(button, action),
+                    PendingEvent::WindowEvent(WindowEvent::MouseButton(
+                        button,
+                        action,
+                        Modifiers::empty(),
+                    )),
+                ]
+            }
+            WinitWindowEvent::Touch(touch) => {
+                let action = match touch.phase {
+                    TouchPhase::Started => TouchAction::Start,
+                    TouchPhase::Ended => TouchAction::End,
+                    TouchPhase::Moved => TouchAction::Move,
+                    TouchPhase::Cancelled => TouchAction::Cancel,
+                };
+                vec![PendingEvent::WindowEvent(WindowEvent::Touch(
+                    touch.id,
+                    touch.location.x,
+                    touch.location.y,
+                    action,
+                    Modifiers::empty(),
+                ))]
+            }
+            WinitWindowEvent::MouseWheel { delta, .. } => {
+                let (x, y) = match delta {
+                    MouseScrollDelta::LineDelta(dx, dy) => (dx as f64 * 10.0, dy as f64 * 10.0),
+                    MouseScrollDelta::PixelDelta(delta) => (delta.x, delta.y),
+                };
+                vec![PendingEvent::WindowEvent(WindowEvent::Scroll(
+                    x,
+                    y,
+                    Modifiers::empty(),
+                ))]
+            }
+            WinitWindowEvent::KeyboardInput { event, .. } => {
+                let action = translate_action(event.state);
+                let key = translate_key(event.physical_key);
+                translate_keyboard_input(key, action, &event.logical_key, event.text.as_deref())
+            }
+            WinitWindowEvent::ModifiersChanged(new_modifiers) => {
+                vec![PendingEvent::Modifiers(new_modifiers.state())]
+            }
+            _ => vec![],
+        };
+
+        for event in pending_events {
+            match event {
+                PendingEvent::WindowEvent(event) => {
+                    let _ = self.out_events.send(event);
+                }
+                PendingEvent::ButtonState(button, action) => {
+                    self.button_states[button as usize] = action;
+                }
+                PendingEvent::KeyState(key, action) => {
+                    self.key_states[key as usize] = action;
+                }
+                PendingEvent::CursorPos(x, y) => {
+                    self.cursor_pos = Some((x, y));
+                }
+                PendingEvent::Modifiers(modifiers) => {
+                    self.modifiers_state = modifiers;
+                }
+                PendingEvent::Resize { .. } => {}
+            }
+        }
+    }
+
     /// Gets the current surface texture for rendering.
     pub fn get_current_texture(&self) -> Option<wgpu::SurfaceTexture> {
         let surface = self.surface.as_ref()?;

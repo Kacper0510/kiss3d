@@ -143,6 +143,11 @@ pub struct Window {
 
 impl Window {
     #[cfg(not(target_arch = "wasm32"))]
+    pub fn handle_external_event(&mut self, event: winit::event::WindowEvent) {
+        self.canvas.handle_external_event(event);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_external(
         window: Arc<winit::window::Window>,
         surface: wgpu::Surface<'static>,
@@ -150,13 +155,7 @@ impl Window {
         setup: CanvasSetup,
     ) -> Window {
         let (event_send, event_receive) = mpsc::channel();
-        let canvas = Canvas::from_external(
-            window,
-            surface,
-            surface_config,
-            setup,
-            event_send,
-        );
+        let canvas = Canvas::from_external(window, surface, surface_config, setup, event_send);
         let (width, height) = canvas.size();
         let canvas_surface_format = canvas.surface_format();
 
@@ -203,7 +202,8 @@ impl Window {
             transmission_enabled: true,
             reflector_oit: None,
             post_process_render_target: framebuffer_manager.new_render_target(width, height, true),
-            post_process_render_target_b: framebuffer_manager.new_render_target(width, height, false),
+            post_process_render_target_b: framebuffer_manager
+                .new_render_target(width, height, false),
             offscreen_output_target: None,
             aov_renderer: None,
             hidden: false,
