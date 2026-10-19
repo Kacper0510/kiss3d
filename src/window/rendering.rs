@@ -65,6 +65,25 @@ impl Window {
             .await
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn render_3d_with_overlay(
+        &mut self,
+        scene: &mut SceneNode3d,
+        camera: &mut impl Camera3d,
+        overlay: &mut dyn FnMut(&wgpu::TextureView),
+    ) -> bool {
+        self.render_chain_with_overlay(
+            Some(scene),
+            None,
+            Some(camera),
+            None,
+            None,
+            &mut [],
+            Some(overlay),
+        )
+        .await
+    }
+
     pub async fn render_2d(&mut self, scene: &mut SceneNode2d, camera: &mut impl Camera2d) -> bool {
         self.render(None, Some(scene), None, Some(camera), None, None)
             .await
@@ -182,6 +201,35 @@ impl Window {
             camera_2d,
             renderer,
             post_processing,
+            None,
+        )
+        .await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn render_chain_with_overlay(
+        &mut self,
+        scene: Option<&mut SceneNode3d>,
+        scene_2d: Option<&mut SceneNode2d>,
+        camera: Option<&mut dyn Camera3d>,
+        camera_2d: Option<&mut dyn Camera2d>,
+        renderer: Option<&mut dyn Renderer3d>,
+        post_processing: &mut [&mut dyn PostProcessingEffect],
+        overlay: Option<&mut dyn FnMut(&wgpu::TextureView)>,
+    ) -> bool {
+        let mut default_cam2 = FixedView2d::default();
+        let mut default_cam = FixedView3d::default();
+        let camera = camera.unwrap_or(&mut default_cam);
+        let camera_2d = camera_2d.unwrap_or(&mut default_cam2);
+        self.handle_events(camera, camera_2d);
+        self.render_single_frame(
+            scene,
+            scene_2d,
+            camera,
+            camera_2d,
+            renderer,
+            post_processing,
+            overlay,
         )
         .await
     }
@@ -194,6 +242,7 @@ impl Window {
         camera_2d: &mut dyn Camera2d,
         mut renderer: Option<&mut dyn Renderer3d>,
         post_processing: &mut [&mut dyn PostProcessingEffect],
+        mut overlay: Option<&mut dyn FnMut(&wgpu::TextureView)>,
     ) -> bool {
         // Frame timing: CPU wall-clock for the whole frame (and submit/present
         // below) plus per-pass GPU timestamps recorded into the GPU timer. The
@@ -1249,6 +1298,10 @@ impl Window {
         // timestamp readback.
         let (_, cpu_submit) = CpuTimer::time(|| ctxt.submit(std::iter::once(encoder.finish())));
         self.gpu_timer.after_submit();
+
+        if let Some(overlay) = overlay.as_mut() {
+            overlay(&frame_view);
+        }
 
         // Render egui if enabled (uses its own command encoder and submits it)
         #[cfg(feature = "egui")]

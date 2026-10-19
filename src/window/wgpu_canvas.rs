@@ -117,6 +117,7 @@ struct PendingSnap {
 /// A unified canvas based on wgpu that works on both native and web platforms.
 #[allow(dead_code)]
 pub struct WgpuCanvas {
+    external_events: bool,
     window: Option<Arc<Window>>,
     #[cfg(not(target_arch = "wasm32"))]
     window_id: Option<winit::window::WindowId>,
@@ -150,6 +151,57 @@ pub struct WgpuCanvas {
 }
 
 impl WgpuCanvas {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn from_external(
+        window: Arc<Window>,
+        surface: wgpu::Surface<'static>,
+        surface_config: wgpu::SurfaceConfiguration,
+        setup: CanvasSetup,
+        out_events: Sender<WindowEvent>,
+    ) -> Self {
+        let ctxt = Context::get();
+        let width = surface_config.width.max(1);
+        let height = surface_config.height.max(1);
+        let sample_count = setup.samples as u32;
+        let (depth_texture, depth_view) =
+            Self::create_depth_texture(&ctxt.device, width, height, sample_count);
+        let (msaa_texture, msaa_view) = if sample_count > 1 {
+            let (texture, view) = Self::create_msaa_texture(
+                &ctxt.device,
+                width,
+                height,
+                surface_config.format,
+                sample_count,
+            );
+            (Some(texture), Some(view))
+        } else {
+            (None, None)
+        };
+        let readback_texture =
+            Self::create_readback_texture(&ctxt.device, width, height, surface_config.format);
+
+        WgpuCanvas {
+            external_events: true,
+            window_id: Some(window.id()),
+            window: Some(window),
+            surface: Some(surface),
+            surface_config,
+            cursor_pos: None,
+            key_states: [Action::Release; Key::Unknown as usize + 1],
+            button_states: [Action::Release; MouseButton::Button8 as usize + 1],
+            out_events,
+            modifiers_state: ModifiersState::default(),
+            depth_texture,
+            depth_view,
+            msaa_texture,
+            msaa_view,
+            sample_count,
+            readback_texture,
+            screenshot_staging: RefCell::new(None),
+            snap_pending: RefCell::new(None),
+        }
+    }
+
     /// Opens a new window and initializes the wgpu context.
     pub async fn open(
         window_attrs: WindowAttributes,
@@ -664,6 +716,7 @@ impl WgpuCanvas {
         let window_id = window.id();
 
         WgpuCanvas {
+            external_events: false,
             window: Some(window),
             #[cfg(not(target_arch = "wasm32"))]
             window_id: Some(window_id),
@@ -776,6 +829,7 @@ impl WgpuCanvas {
             Self::create_readback_texture(&ctxt.device, width, height, surface_format);
 
         WgpuCanvas {
+            external_events: false,
             window: None,
             #[cfg(not(target_arch = "wasm32"))]
             window_id: None,
@@ -990,7 +1044,7 @@ impl WgpuCanvas {
     /// Polls events from the window system.
     pub fn poll_events(&mut self) {
         // A headless canvas has no window and no event loop; nothing to poll.
-        if self.window.is_none() {
+        if self.window.is_none() || self.external_events {
             return;
         }
 

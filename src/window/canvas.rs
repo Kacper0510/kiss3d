@@ -72,6 +72,19 @@ pub struct Canvas {
 }
 
 impl Canvas {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn from_external(
+        window: std::sync::Arc<winit::window::Window>,
+        surface: wgpu::Surface<'static>,
+        surface_config: wgpu::SurfaceConfiguration,
+        setup: CanvasSetup,
+        out_events: Sender<WindowEvent>,
+    ) -> Self {
+        Canvas {
+            canvas: WgpuCanvas::from_external(window, surface, surface_config, setup, out_events),
+        }
+    }
+
     /// Open a new window, and initialize the wgpu context.
     pub async fn open(
         window_attrs: WindowAttributes,
