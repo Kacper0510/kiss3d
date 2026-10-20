@@ -50,6 +50,17 @@ impl PointRenderer2d {
     pub fn new() -> PointRenderer2d {
         let ctxt = Context::get();
 
+        let supports_vertex_storage = ctxt
+            .adapter
+            .get_downlevel_capabilities()
+            .flags
+            .contains(wgpu::DownlevelFlags::VERTEX_STORAGE);
+        let vertex_storage_ty = if supports_vertex_storage {
+            wgpu::BufferBindingType::Storage { read_only: true }
+        } else {
+            wgpu::BufferBindingType::Uniform
+        };
+
         // Create bind group layout with uniform buffer and storage buffer
         let bind_group_layout = ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("planar_point_renderer_bind_group_layout"),
@@ -70,7 +81,7 @@ impl PointRenderer2d {
                     binding: 1,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        ty: vertex_storage_ty,
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },

@@ -482,6 +482,17 @@ impl ObjectMaterial2d {
                 }],
             });
 
+        let supports_vertex_storage = ctxt
+            .adapter
+            .get_downlevel_capabilities()
+            .flags
+            .contains(wgpu::DownlevelFlags::VERTEX_STORAGE);
+        let vertex_storage_ty = if supports_vertex_storage {
+            wgpu::BufferBindingType::Storage { read_only: true }
+        } else {
+            wgpu::BufferBindingType::Uniform
+        };
+
         let wireframe_model_bind_group_layout =
             ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("planar_wireframe_model_bind_group_layout"),
@@ -502,7 +513,7 @@ impl ObjectMaterial2d {
                         binding: 1,
                         visibility: wgpu::ShaderStages::VERTEX,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            ty: vertex_storage_ty,
                             has_dynamic_offset: false,
                             min_binding_size: None,
                         },
@@ -667,7 +678,7 @@ impl ObjectMaterial2d {
                         binding: 1,
                         visibility: wgpu::ShaderStages::VERTEX,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            ty: vertex_storage_ty,
                             has_dynamic_offset: false,
                             min_binding_size: None,
                         },

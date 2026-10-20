@@ -155,20 +155,29 @@ impl DeformGlobals {
     }
 }
 
-fn with_globals<R>(f: impl FnOnce(&DeformGlobals) -> R) -> R {
+fn with_globals<R>(f: impl FnOnce(Option<&DeformGlobals>) -> R) -> R {
     GLOBALS.with(|cell| {
-        if cell.borrow().is_none() {
-            *cell.borrow_mut() = Some(DeformGlobals::new());
+        let mut cell = cell.borrow_mut();
+        if cell.is_none() {
+            let ctxt = Context::get();
+            if ctxt
+                .adapter
+                .get_downlevel_capabilities()
+                .flags
+                .contains(wgpu::DownlevelFlags::VERTEX_STORAGE)
+            {
+                *cell = Some(DeformGlobals::new());
+            }
         }
-        f(cell.borrow().as_ref().unwrap())
+        f(cell.as_ref())
     })
 }
 
 /// The shared deform bind-group layout, used as group 4 of the color/prepass
 /// pipelines and group 2 of the shadow pipelines. All these pipelines reference the
 /// *same* layout object, so one per-object bind group works in every pass.
-pub fn deform_bind_group_layout() -> wgpu::BindGroupLayout {
-    with_globals(|g| g.layout.clone())
+pub fn deform_bind_group_layout() -> Option<wgpu::BindGroupLayout> {
+    with_globals(|g| g.map(|g| g.layout.clone()))
 }
 
 /// Per-object GPU deform state: the [`DeformControl`] uniform buffer and a cached
@@ -225,7 +234,7 @@ impl DeformGpu {
             ptr(morph_nrm),
         ];
         if self.bind_group.is_none() || self.key != Some(key) {
-            self.bind_group = Some(build_deform_bind_group(
+            self.bind_group = build_deform_bind_group(
                 "deform_bind_group",
                 palette,
                 joints,
@@ -233,7 +242,7 @@ impl DeformGpu {
                 morph_pos,
                 morph_nrm,
                 &self.control,
-            ));
+            );
             self.key = Some(key);
         }
     }
@@ -261,15 +270,16 @@ pub fn build_deform_bind_group(
     morph_pos: Option<&wgpu::Buffer>,
     morph_nrm: Option<&wgpu::Buffer>,
     control: &wgpu::Buffer,
-) -> wgpu::BindGroup {
+) -> Option<wgpu::BindGroup> {
     let ctxt = Context::get();
     with_globals(|g| {
+        let g = g?;
         let palette = palette.unwrap_or(&g.identity_palette);
         let joints = joints.unwrap_or(&g.dummy_joints);
         let weights = weights.unwrap_or(&g.dummy_weights);
         let morph_pos = morph_pos.unwrap_or(&g.dummy_morph);
         let morph_nrm = morph_nrm.unwrap_or(&g.dummy_morph);
-        ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
+        Some(ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some(label),
             layout: &g.layout,
             entries: &[
@@ -298,6 +308,6 @@ pub fn build_deform_bind_group(
                     resource: control.as_entire_binding(),
                 },
             ],
-        })
+        }))
     })
 }

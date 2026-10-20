@@ -1471,9 +1471,8 @@ impl ObjectMaterial {
         // `deform`-featured module. The deform bind-group layout is the shared one
         // from `builtin::deform`, so the per-object bind group also works in the
         // shadow pipelines (which place it at their own group index).
-        let deform_pipeline_layout = {
-            let deform_bind_group_layout = crate::builtin::deform::deform_bind_group_layout();
-            Some(
+        let deform_pipeline_layout =
+            crate::builtin::deform::deform_bind_group_layout().map(|deform_bind_group_layout| {
                 ctxt.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("object_material_deform_pipeline_layout"),
                     bind_group_layouts: &[
@@ -1483,9 +1482,8 @@ impl ObjectMaterial {
                         Some(&deform_bind_group_layout),
                     ],
                     immediate_size: 0,
-                }),
-            )
-        };
+                })
+            });
 
         // Create wireframe shader and pipelines for lines/points
         // Note: _wireframe_shader, _wireframe_pipeline_layout, and _wireframe_vertex_buffer_layouts
@@ -1580,6 +1578,17 @@ impl ObjectMaterial {
                 }],
             });
 
+        let supports_vertex_storage = ctxt
+            .adapter
+            .get_downlevel_capabilities()
+            .flags
+            .contains(wgpu::DownlevelFlags::VERTEX_STORAGE);
+        let vertex_storage_ty = if supports_vertex_storage {
+            wgpu::BufferBindingType::Storage { read_only: true }
+        } else {
+            wgpu::BufferBindingType::Uniform
+        };
+
         let wireframe_model_bind_group_layout =
             ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("wireframe_model_bind_group_layout"),
@@ -1600,7 +1609,7 @@ impl ObjectMaterial {
                         binding: 1,
                         visibility: wgpu::ShaderStages::VERTEX,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            ty: vertex_storage_ty,
                             has_dynamic_offset: false,
                             min_binding_size: None,
                         },
@@ -1776,7 +1785,7 @@ impl ObjectMaterial {
                         binding: 1,
                         visibility: wgpu::ShaderStages::VERTEX,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            ty: vertex_storage_ty,
                             has_dynamic_offset: false,
                             min_binding_size: None,
                         },

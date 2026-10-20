@@ -437,23 +437,25 @@ impl ShadowMapper {
         // lit geometry is animated, self-shadowing the moved surfaces (acne). The
         // deform bind-group layout is the shared one from `builtin::deform`, so each
         // object's deform bind group works in both the color and shadow passes.
-        let (deform_depth_pipeline, deform_transmittance_pipeline) = {
-            let deform_layout = crate::builtin::deform::deform_bind_group_layout();
-            let depth = Self::create_depth_pipeline_deform(
-                &ctxt,
-                &view_bind_group_layout,
-                &model_bind_group_layout,
-                &deform_layout,
-            );
-            let transmittance = Self::create_transmittance_pipeline_deform(
-                &ctxt,
-                &view_bind_group_layout,
-                &model_bind_group_layout,
-                &deform_layout,
-                &transmittance_tex_bgl,
-            );
-            (Some(depth), Some(transmittance))
-        };
+        let (deform_depth_pipeline, deform_transmittance_pipeline) =
+            if let Some(deform_layout) = crate::builtin::deform::deform_bind_group_layout() {
+                let depth = Self::create_depth_pipeline_deform(
+                    &ctxt,
+                    &view_bind_group_layout,
+                    &model_bind_group_layout,
+                    &deform_layout,
+                );
+                let transmittance = Self::create_transmittance_pipeline_deform(
+                    &ctxt,
+                    &view_bind_group_layout,
+                    &model_bind_group_layout,
+                    &deform_layout,
+                    &transmittance_tex_bgl,
+                );
+                (Some(depth), Some(transmittance))
+            } else {
+                (None, None)
+            };
 
         let view_capacity = MAX_SHADOW_VIEWS as u64;
         let view_uniform_buffer = ctxt.create_buffer(&wgpu::BufferDescriptor {

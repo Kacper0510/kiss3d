@@ -1443,6 +1443,9 @@ impl WgpuCanvas {
     /// an offscreen texture rather than a surface, makes its frame available
     /// to `snap`/`snap_rect`.
     pub fn copy_texture_to_readback(&self, src: &wgpu::Texture) {
+        if !src.usage().contains(wgpu::TextureUsages::COPY_SRC) {
+            return;
+        }
         let ctxt = Context::get();
         let mut encoder = ctxt.create_command_encoder(Some("readback_copy_encoder"));
 
