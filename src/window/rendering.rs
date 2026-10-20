@@ -65,7 +65,6 @@ impl Window {
             .await
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub async fn render_3d_with_overlay(
         &mut self,
         scene: &mut SceneNode3d,
@@ -206,7 +205,6 @@ impl Window {
         .await
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     async fn render_chain_with_overlay(
         &mut self,
         scene: Option<&mut SceneNode3d>,
@@ -1362,16 +1360,18 @@ impl Window {
             use wasm_bindgen::JsCast;
             use web_sys::wasm_bindgen::closure::Closure;
 
-            if let Some(window) = web_sys::window() {
-                let (s, r) = oneshot::channel();
+            if !self.canvas.is_external() {
+                if let Some(window) = web_sys::window() {
+                    let (s, r) = oneshot::channel();
 
-                let closure = Closure::once(move || s.send(()).unwrap());
+                    let closure = Closure::once(move || s.send(()).unwrap());
 
-                window
-                    .request_animation_frame(closure.as_ref().unchecked_ref())
-                    .unwrap();
+                    window
+                        .request_animation_frame(closure.as_ref().unchecked_ref())
+                        .unwrap();
 
-                r.await.unwrap();
+                    r.await.unwrap();
+                }
             }
         }
 

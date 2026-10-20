@@ -10,13 +10,11 @@ use crate::window::canvas::CanvasSetup;
 use image::{GenericImage, Pixel};
 #[cfg(not(target_arch = "wasm32"))]
 use winit::application::ApplicationHandler;
-#[cfg(not(target_arch = "wasm32"))]
 use winit::event::{MouseScrollDelta, TouchPhase, WindowEvent as WinitWindowEvent};
 #[cfg(not(target_arch = "wasm32"))]
 use winit::event_loop::ActiveEventLoop;
 use winit::event_loop::EventLoop;
 use winit::keyboard::ModifiersState;
-#[cfg(not(target_arch = "wasm32"))]
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Icon, Window, WindowAttributes};
 
@@ -89,7 +87,6 @@ thread_local! {
 }
 
 /// Internal event type that stores both the event data and state updates needed.
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Debug, PartialEq)]
 enum PendingEvent {
     WindowEvent(WindowEvent),
@@ -98,6 +95,7 @@ enum PendingEvent {
     CursorPos(f64, f64),
     #[allow(dead_code)]
     Modifiers(ModifiersState),
+    #[allow(dead_code)]
     Resize {
         width: u32,
         height: u32,
@@ -151,7 +149,6 @@ pub struct WgpuCanvas {
 }
 
 impl WgpuCanvas {
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_external(
         window: Arc<Window>,
         surface: wgpu::Surface<'static>,
@@ -182,6 +179,7 @@ impl WgpuCanvas {
 
         WgpuCanvas {
             external_events: true,
+            #[cfg(not(target_arch = "wasm32"))]
             window_id: Some(window.id()),
             window: Some(window),
             surface: Some(surface),
@@ -199,6 +197,10 @@ impl WgpuCanvas {
             readback_texture,
             screenshot_staging: RefCell::new(None),
             snap_pending: RefCell::new(None),
+            #[cfg(target_arch = "wasm32")]
+            pending_events: Rc::new(RefCell::new(Vec::new())),
+            #[cfg(target_arch = "wasm32")]
+            _event_closures: Vec::new(),
         }
     }
 
@@ -1041,6 +1043,10 @@ impl WgpuCanvas {
         })
     }
 
+    pub fn is_external(&self) -> bool {
+        self.external_events
+    }
+
     /// Polls events from the window system.
     pub fn poll_events(&mut self) {
         // A headless canvas has no window and no event loop; nothing to poll.
@@ -1315,9 +1321,8 @@ impl WgpuCanvas {
         }
     }
 
-    /// Translates one event from an externally-owned native winit event loop
+    /// Translates one event from an externally-owned winit event loop
     /// into kiss3d's event queue.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn handle_external_event(&mut self, event: WinitWindowEvent) {
         let pending_events = match event {
             WinitWindowEvent::CloseRequested => {
@@ -1749,7 +1754,6 @@ impl WgpuCanvas {
 // pending events. `Char` events are only emitted on key press — emitting them
 // on release as well caused egui textboxes to receive every character twice
 // (see https://github.com/dimforge/kiss3d/issues/380).
-#[cfg(not(target_arch = "wasm32"))]
 fn translate_keyboard_input(
     key: Key,
     action: Action,
@@ -1780,7 +1784,6 @@ fn translate_keyboard_input(
     events
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn translate_action(action: winit::event::ElementState) -> Action {
     use winit::event::ElementState;
     match action {
@@ -1789,7 +1792,6 @@ fn translate_action(action: winit::event::ElementState) -> Action {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[allow(dead_code)]
 fn translate_modifiers(modifiers: ModifiersState) -> Modifiers {
     let mut res = Modifiers::empty();
@@ -1808,7 +1810,6 @@ fn translate_modifiers(modifiers: ModifiersState) -> Modifiers {
     res
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn translate_mouse_button(button: winit::event::MouseButton) -> MouseButton {
     match button {
         winit::event::MouseButton::Left => MouseButton::Button1,
@@ -1818,7 +1819,6 @@ fn translate_mouse_button(button: winit::event::MouseButton) -> MouseButton {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn translate_key(physical_key: PhysicalKey) -> Key {
     if let PhysicalKey::Code(key_code) = physical_key {
         match key_code {

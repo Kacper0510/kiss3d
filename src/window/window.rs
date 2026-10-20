@@ -142,12 +142,14 @@ pub struct Window {
 }
 
 impl Window {
-    #[cfg(not(target_arch = "wasm32"))]
+    pub fn is_external(&self) -> bool {
+        self.canvas.is_external()
+    }
+
     pub fn handle_external_event(&mut self, event: winit::event::WindowEvent) {
         self.canvas.handle_external_event(event);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_external(
         window: Arc<winit::window::Window>,
         surface: wgpu::Surface<'static>,
